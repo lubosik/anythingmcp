@@ -91,18 +91,17 @@ COPY packages/frontend/ ./packages/frontend/
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Sentry: the commit being built names the release. The auth token for the
-# source map upload is a BuildKit secret, never an ARG, so it cannot end up in
-# a layer or `docker history`. Without it (any build but our publish workflow)
-# the upload is skipped; the maps are deleted from the output either way.
+# Sentry: the commit being built names the release. This self-hosted build has
+# no Sentry auth token, so the optional source-map upload is skipped; the maps
+# are deleted from the output either way. Never pass an auth token as an ARG.
 ARG SENTRY_RELEASE=
 ENV SENTRY_RELEASE=$SENTRY_RELEASE
 
 WORKDIR /app/packages/frontend
-RUN --mount=type=secret,id=sentry_auth_token \
-    export SENTRY_AUTH_TOKEN="$(cat /run/secrets/sentry_auth_token 2>/dev/null || true)" && \
-    echo "Sentry auth token: $([ -n "$SENTRY_AUTH_TOKEN" ] && echo present || echo absent)" && \
-    npm run build
+# Railway's Dockerfile builder supports cache mounts but not BuildKit secret
+# mounts. This self-hosted image does not upload source maps to Sentry; the
+# Sentry plugin still removes them from the output after building.
+RUN npm run build
 
 # ── Stage 4: Production ─────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner
